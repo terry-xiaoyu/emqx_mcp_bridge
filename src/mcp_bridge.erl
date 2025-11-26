@@ -28,6 +28,7 @@
 -export([
     on_client_connected/2,
     on_message_publish/1,
+    on_message_delivered/2,
     on_message_puback/4
 ]).
 
@@ -41,10 +42,8 @@
 
 -define(PROP_K_MCP_COMP_TYPE, <<"MCP-COMPONENT-TYPE">>).
 -define(PROP_K_MCP_SERVER_NAME, <<"MCP-SERVER-NAME">>).
--define(INIT_REQ_ID, 1).
--define(LIST_TOOLS_REQ_ID, 2).
--define(MCP_CLIENTID_S, "emqx_mcp_bridge").
--define(MCP_CLIENTID_B, <<"emqx_mcp_bridge">>).
+-define(INIT_REQ_ID, <<"init_1">>).
+-define(LIST_TOOLS_REQ_ID, <<"list_tools_1">>).
 
 %% NOTE
 %% Functions from EMQX are unavailable at compile time.
@@ -55,6 +54,7 @@
 hook() ->
     emqx_hooks:add('client.connected', {?MODULE, on_client_connected, []}, ?HP_LOWEST),
     emqx_hooks:add('message.publish', {?MODULE, on_message_publish, []}, ?HP_HIGHEST),
+    emqx_hooks:add('message.delivered', {?MODULE, on_message_delivered, []}, ?HP_HIGHEST),
     emqx_hooks:add('message.puback', {?MODULE, on_message_puback, []}, ?HP_HIGHEST).
 
 %% @doc
@@ -62,10 +62,8 @@ hook() ->
 unhook() ->
     emqx_hooks:del('client.connected', {?MODULE, on_client_connected}),
     emqx_hooks:del('message.publish', {?MODULE, on_message_publish}),
+    emqx_hooks:del('message.delivered', {?MODULE, on_message_delivered}),
     emqx_hooks:del('message.puback', {?MODULE, on_message_puback}).
-
-send_request(#{<<"id">> := Id, <<"method">> := <<"tools/call">>, <<"params">> := Params} = CallToolRequest) ->
-    
 
 %%--------------------------------------------------------------------
 %% Hook callbacks
@@ -132,6 +130,9 @@ on_message_publish(
             load_tools_from_result(ServerId, ServerName, Result);
         {ok, #{id := ?LIST_TOOLS_REQ_ID} = Response} ->
             ?SLOG(error, #{msg => list_tools_failed, rpc_response => Response});
+        {ok, #{id := Id, type := json_rpc_response, result := Result}} ->
+            ?SLOG(info, #{msg => received_response, server_id => ServerId, server_name => ServerName}),
+            handle_mcp_response(Id, Result);
         {ok, _Msg} ->
             ok;
         {error, Reason} ->
@@ -139,6 +140,13 @@ on_message_publish(
     end,
     {ok, Message};
 on_message_publish(Message) ->
+    {ok, Message}.
+
+on_message_delivered(_ClientInfo, #message{headers = #{?MCP_MSG_HEADER := McpRequest}, id = Id} = Message) ->
+    MqttId = emqx_guid:to_hexstr(Id),
+    ok = maybe_cache_request(McpRequest, MqttId),
+    {ok, mcp_bridge_message:complete_mqtt_msg(Message, MqttId)};
+on_message_delivered(_ClientInfo, Message) ->
     {ok, Message}.
 
 on_message_puback(_PacketId, #message{} = Message, PubRes, RC) ->
@@ -184,6 +192,45 @@ maybe_list_tools(ServerId, ServerName) ->
             ok;
         undefined ->
             ok
+    end.
+
+maybe_cache_request(#{wait_response := false} = Request, _) ->
+    mcp_bridge_message:reply_caller(Request, delivered),
+    ok;
+maybe_cache_request(Request, MqttId) ->
+    CacheK = {?MODULE, request_cache},
+    Cache = case erlang:get(CacheK) of
+        undefined -> #{};
+        C -> C
+    end,
+    NewCache = maps:put(MqttId, Request, Cache),
+    erlang:put(CacheK, NewCache),
+    ok.
+
+remove_expired_request(Cache) ->
+    Now = erlang:system_time(millisecond),
+    ExpiredThreshold = 30_000, %% 30 seconds
+    maps:filter(
+        fun(_MqttId, #{timestamp := Timestamp}) ->
+            Now - Timestamp =< ExpiredThreshold
+        end,
+        Cache
+    ).
+
+handle_mcp_response(MqttId, Result) ->
+    CacheK = {?MODULE, request_cache},
+    Cache = case erlang:get(CacheK) of
+        undefined -> #{};
+        C -> C
+    end,
+    case maps:find(MqttId, Cache) of
+        {ok, Request} ->
+            mcp_bridge_message:reply_caller(Request, Result),
+            NewCache = maps:remove(MqttId, Cache),
+            erlang:put(CacheK, remove_expired_request(NewCache)),
+            ok;
+        error ->
+            ?SLOG(warning, #{msg => unknown_mcp_response_id, mqtt_id => MqttId})
     end.
 
 load_tools_from_result(ServerId, ServerName, #{<<"tools">> := ToolsList}) ->

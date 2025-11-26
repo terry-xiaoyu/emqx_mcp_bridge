@@ -6,3 +6,6 @@
     <<"version">> => <<"1.0.0">>,
     <<"title">> => <<"EMQX MCP Bridge">>
 }).
+-define(MCP_MSG_HEADER, emqx_mcp_bridge).
+-define(MCP_CLIENTID_S, "emqx_mcp_bridge").
+-define(MCP_CLIENTID_B, <<"emqx_mcp_bridge">>).

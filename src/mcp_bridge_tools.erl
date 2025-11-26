@@ -57,8 +57,8 @@ save_tools(MqttClientId, ToolType, ToolsList) ->
 
 get_tools(ToolType) ->
     case mnesia:dirty_read(?TAB, ToolType) of
-        [#emqx_mcp_tool_registry{tools = Tools}] ->
-            Tools;
+        [#emqx_mcp_tool_registry{mqtt_client_id = MqttClientId, tools = TaggedTools}] ->
+            {ok, #{mqtt_client_id => MqttClientId, tools => TaggedTools}};
         [] ->
-            []
+            {error, not_found}
     end.

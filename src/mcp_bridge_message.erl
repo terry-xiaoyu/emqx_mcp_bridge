@@ -1,6 +1,7 @@
 -module(mcp_bridge_message).
 
 -include("mcp_bridge.hrl").
+-include_lib("emqx_plugin_helper/include/emqx.hrl").
 
 -export([ initialize_request/2
         , initialize_request/3
@@ -16,7 +17,10 @@
         , decode_rpc_msg/1
         , get_topic/2
         , make_mqtt_msg/5
-        , publish_mqtt_msg/2
+        , send_tools_call/3
+        , send_mcp_request/5
+        , reply_caller/2
+        , complete_mqtt_msg/2
         ]).
 
 %%==============================================================================
@@ -140,11 +144,97 @@ make_mqtt_msg(Topic, Payload, McpClientId, Flags, QoS) ->
     QoS = 1,
     emqx_message:make(McpClientId, QoS, Topic, Payload, Flags, Headers).
 
-publish_mqtt_msg(ClientId, Msg) ->
-    case emqx_cm:lookup_channels(ClientId) of
+send_tools_call(#{id := McpReqId, method := <<"tools/call">>, params := Params} = McpRequest, WaitResponse, Timeout) ->
+    case string:split(maps:get(<<"name">>, Params, <<>>), ":") of
+        [ToolType, ToolName] ->
+            case mcp_bridge_tools:get_tools(ToolType) of
+                {ok, #{mqtt_client_id := MqttClientId}} ->
+                    McpRequest1 = McpRequest#{params := Params#{<<"name">> => ToolName}},
+                    Topic = get_topic(rpc, #{
+                        mcp_clientid => ?MCP_CLIENTID_B,
+                        server_id => MqttClientId,
+                        server_name => ToolType
+                    }),
+                    Result = send_mcp_request(MqttClientId, Topic, McpRequest1, WaitResponse, Timeout),
+                    call_tool_result(Result, McpReqId);
+                {error, not_found} ->
+                    {error, tool_not_found}
+            end;
+        _ -> {error, invalid_tool_name}
+    end.
+
+send_mcp_request(MqttClientId, Topic, McpRequest, WaitResponse, Timeout) ->
+    case emqx_cm:lookup_channels(MqttClientId) of
         [] ->
             {error, session_not_found};
         Pids when is_list(Pids) ->
-            erlang:send(lists:last(Pids), {deliver, emqx_message:topic(Msg), Msg}),
-            ok
+            Pid = lists:last(Pids),
+            Mref = erlang:monitor(process, Pid),
+            Msg1 = make_semi_finished_mqtt_msg(Topic, Mref, McpRequest, WaitResponse),
+            erlang:send(Pid, {deliver, emqx_message:topic(Msg1), Msg1}, [noconnect]),
+            receive
+                {mcp_response, Mref, Reply} ->
+                    erlang:demonitor(Mref, [flush]),
+                    {ok, Reply};
+                {'DOWN', Mref, _, _, noconnection} ->
+                    {error, #{reason => nodedown, node => node(Pid)}};
+                {'DOWN', Mref, _, _, Reason} ->
+                    {error, #{reason => session_die, detail => Reason}}
+            after Timeout ->
+                erlang:demonitor(Mref, [flush]),
+                receive
+                    {mcp_response, Reply} ->
+                        {ok, Reply}
+                after 0 ->
+                    {error, timeout}
+                end
+            end
     end.
+
+reply_caller(#{caller := Caller, monitor_ref := Mref}, Reply) ->
+    Caller ! {mcp_response, Mref, Reply},
+    ok.
+
+call_tool_result({ok, Reply}, McpReqId) when is_atom(Reply) ->
+    json_rpc_response(McpReqId, #{
+        <<"isError">> => false,
+        <<"content">> => [
+            #{
+                <<"type">> => <<"text">>,
+                <<"text">> => Reply
+            }
+        ]
+    });
+call_tool_result({ok, Reply}, McpReqId) ->
+    json_rpc_response(McpReqId, Reply);
+call_tool_result({error, Reason}, McpReqId) ->
+    json_rpc_response(McpReqId, #{
+        <<"isError">> => true,
+        <<"content">> => [
+            #{
+                <<"type">> => <<"text">>,
+                <<"text">> => iolist_to_binary(io_lib:format("~p", [Reason]))
+            }
+        ]
+    }).
+
+make_mcp_request(Mref, #{id := McpReqId, method := Method, params := Params}, WaitResponse) ->
+    #{
+        caller => self(),
+        monitor_ref => Mref,
+        id => McpReqId,
+        method => Method,
+        params => Params,
+        wait_response => WaitResponse,
+        timestamp => erlang:system_time(millisecond)
+    }.
+
+make_semi_finished_mqtt_msg(Topic, Mref, McpRequest, WaitResponse) ->
+    %% Set an empty payload and put the MCP request into message header
+    Msg = make_mqtt_msg(Topic, <<>>, ?MCP_CLIENTID_B, #{}, 1),
+    emqx_message:set_header(?MCP_MSG_HEADER, make_mcp_request(Mref, McpRequest, WaitResponse), Msg).
+
+complete_mqtt_msg(#message{headers = #{?MCP_MSG_HEADER := McpRequest} = Headers} = Message, McpReqId) ->
+    #{method := Method, params := Params} = McpRequest,
+    Payload = json_rpc_request(McpReqId, Method, Params),
+    Message#message{payload = Payload, headers = maps:remove(?MCP_MSG_HEADER, Headers)}.
