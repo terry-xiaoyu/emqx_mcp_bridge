@@ -88,7 +88,6 @@ on_message_publish(
 ) ->
     %% Ignore MCP Server disconnected notifications
     {ok, Message};
-
 on_message_publish(
     #message{
         from = ServerId,
@@ -113,7 +112,7 @@ on_message_publish(
 on_message_publish(
     #message{
         from = ServerId,
-        topic = <<"$mcp-rpc/"?MCP_CLIENTID_S"/", ServerIdAndName/binary>>,
+        topic = <<"$mcp-rpc/" ?MCP_CLIENTID_S "/", ServerIdAndName/binary>>,
         payload = PresenceMsg
     } = Message
 ) ->
@@ -122,16 +121,26 @@ on_message_publish(
         {ok, #{id := ?INIT_REQ_ID, type := json_rpc_response}} ->
             send_initialized_notification(ServerId, ServerName),
             maybe_list_tools(ServerId, ServerName),
-            ?SLOG(info, #{msg => received_initialize_response, server_id => ServerId, server_name => ServerName});
+            ?SLOG(info, #{
+                msg => received_initialize_response,
+                server_id => ServerId,
+                server_name => ServerName
+            });
         {ok, #{id := ?INIT_REQ_ID} = Response} ->
             ?SLOG(error, #{msg => initialize_failed, rpc_response => Response});
         {ok, #{id := ?LIST_TOOLS_REQ_ID, type := json_rpc_response, result := Result}} ->
-            ?SLOG(info, #{msg => received_list_tools_response, server_id => ServerId, server_name => ServerName}),
+            ?SLOG(info, #{
+                msg => received_list_tools_response,
+                server_id => ServerId,
+                server_name => ServerName
+            }),
             load_tools_from_result(ServerId, ServerName, Result);
         {ok, #{id := ?LIST_TOOLS_REQ_ID} = Response} ->
             ?SLOG(error, #{msg => list_tools_failed, rpc_response => Response});
         {ok, #{id := Id, type := json_rpc_response, result := Result}} ->
-            ?SLOG(info, #{msg => received_response, server_id => ServerId, server_name => ServerName}),
+            ?SLOG(info, #{
+                msg => received_response, server_id => ServerId, server_name => ServerName
+            }),
             handle_mcp_response(Id, Result);
         {ok, _Msg} ->
             ok;
@@ -142,7 +151,9 @@ on_message_publish(
 on_message_publish(Message) ->
     {ok, Message}.
 
-on_message_delivered(_ClientInfo, #message{headers = #{?MCP_MSG_HEADER := McpRequest}, id = Id} = Message) ->
+on_message_delivered(
+    _ClientInfo, #message{headers = #{?MCP_MSG_HEADER := McpRequest}, id = Id} = Message
+) ->
     MqttId = emqx_guid:to_hexstr(Id),
     ok = maybe_cache_request(McpRequest, MqttId),
     {ok, mcp_bridge_message:complete_mqtt_msg(Message, MqttId)};
@@ -174,8 +185,11 @@ initialize_mcp_server(ServerInfo) ->
 
 send_initialized_notification(ServerId, ServerName) ->
     Notif = mcp_bridge_message:initialized_notification(),
-    Topic = mcp_bridge_message:get_topic(rpc, #{mcp_clientid => ?MCP_CLIENTID_B,
-        server_id => ServerId, server_name => ServerName}),
+    Topic = mcp_bridge_message:get_topic(rpc, #{
+        mcp_clientid => ?MCP_CLIENTID_B,
+        server_id => ServerId,
+        server_name => ServerName
+    }),
     NotifMsg = mcp_bridge_message:make_mqtt_msg(Topic, Notif, ?MCP_CLIENTID_B, #{}, 1),
     self() ! {deliver, Topic, NotifMsg},
     ok.
@@ -184,9 +198,14 @@ maybe_list_tools(ServerId, ServerName) ->
     case erlang:get({?MODULE, need_list_tools}) of
         true ->
             ListToolsReq = mcp_bridge_message:list_tools_request(?LIST_TOOLS_REQ_ID),
-            Topic = mcp_bridge_message:get_topic(rpc, #{mcp_clientid => ?MCP_CLIENTID_B,
-                server_id => ServerId, server_name => ServerName}),
-            ListToolsReqMsg = mcp_bridge_message:make_mqtt_msg(Topic, ListToolsReq, ?MCP_CLIENTID_B, #{}, 1),
+            Topic = mcp_bridge_message:get_topic(rpc, #{
+                mcp_clientid => ?MCP_CLIENTID_B,
+                server_id => ServerId,
+                server_name => ServerName
+            }),
+            ListToolsReqMsg = mcp_bridge_message:make_mqtt_msg(
+                Topic, ListToolsReq, ?MCP_CLIENTID_B, #{}, 1
+            ),
             self() ! {deliver, Topic, ListToolsReqMsg},
             erlang:erase({?MODULE, need_list_tools}),
             ok;
@@ -199,17 +218,19 @@ maybe_cache_request(#{wait_response := false} = Request, _) ->
     ok;
 maybe_cache_request(Request, MqttId) ->
     CacheK = {?MODULE, request_cache},
-    Cache = case erlang:get(CacheK) of
-        undefined -> #{};
-        C -> C
-    end,
+    Cache =
+        case erlang:get(CacheK) of
+            undefined -> #{};
+            C -> C
+        end,
     NewCache = maps:put(MqttId, Request, Cache),
     erlang:put(CacheK, NewCache),
     ok.
 
 remove_expired_request(Cache) ->
     Now = erlang:system_time(millisecond),
-    ExpiredThreshold = 30_000, %% 30 seconds
+    %% 30 seconds
+    ExpiredThreshold = 30_000,
     maps:filter(
         fun(_MqttId, #{timestamp := Timestamp}) ->
             Now - Timestamp =< ExpiredThreshold
@@ -219,10 +240,11 @@ remove_expired_request(Cache) ->
 
 handle_mcp_response(MqttId, Result) ->
     CacheK = {?MODULE, request_cache},
-    Cache = case erlang:get(CacheK) of
-        undefined -> #{};
-        C -> C
-    end,
+    Cache =
+        case erlang:get(CacheK) of
+            undefined -> #{};
+            C -> C
+        end,
     case maps:find(MqttId, Cache) of
         {ok, Request} ->
             mcp_bridge_message:reply_caller(Request, Result),
@@ -306,7 +328,9 @@ terminate(_Reason, _State) ->
 parse_config(#{<<"listening_address">> := URI} = Config) ->
     ListeningAddress = #{authority := #{host := Host} = Authority} = emqx_utils_uri:parse(URI),
     #{
-        get_target_clientid_from => maps:get(<<"get_target_clientid_from">>, Config, <<"http_headers">>),
+        get_target_clientid_from => maps:get(
+            <<"get_target_clientid_from">>, Config, <<"http_headers">>
+        ),
         listening_address => ListeningAddress#{
             authority := Authority#{host := parse_address(Host)}
         },
@@ -318,7 +342,8 @@ parse_config(#{<<"listening_address">> := URI} = Config) ->
 parse_address(Host) when is_binary(Host) ->
     Host1 = binary_to_list(Host),
     case inet_parse:address(Host1) of
-        {ok, IP} -> IP;
+        {ok, IP} ->
+            IP;
         {error, _} ->
             {ok, IP} = inet:getaddr(Host1, inet),
             IP

@@ -3,32 +3,35 @@
 -include("mcp_bridge.hrl").
 -include_lib("emqx_plugin_helper/include/emqx.hrl").
 
--export([ initialize_request/2
-        , initialize_request/3
-        , initialize_response/3
-        , initialize_response/4
-        , initialized_notification/0
-        , list_tools_request/1
-        ]).
+-export([
+    initialize_request/2,
+    initialize_request/3,
+    initialize_response/3,
+    initialize_response/4,
+    initialized_notification/0,
+    list_tools_request/1
+]).
 
--export([ send_tools_call/5
-        , do_send_tools_call/4
-        , send_mcp_request/5
-        , list_tools/0
-        , list_tools/1
-        ]).
+-export([
+    send_tools_call/5,
+    do_send_tools_call/4,
+    send_mcp_request/5,
+    list_tools/0,
+    list_tools/1
+]).
 
--export([ json_rpc_request/3
-        , json_rpc_response/2
-        , json_rpc_notification/1
-        , json_rpc_notification/2
-        , json_rpc_error/4
-        , decode_rpc_msg/1
-        , get_topic/2
-        , make_mqtt_msg/5
-        , reply_caller/2
-        , complete_mqtt_msg/2
-        ]).
+-export([
+    json_rpc_request/3,
+    json_rpc_response/2,
+    json_rpc_notification/1,
+    json_rpc_notification/2,
+    json_rpc_error/4,
+    decode_rpc_msg/1,
+    get_topic/2,
+    make_mqtt_msg/5,
+    reply_caller/2,
+    complete_mqtt_msg/2
+]).
 
 %%==============================================================================
 %% MCP Requests/Responses/Notifications
@@ -171,7 +174,7 @@ list_tools() ->
 
 list_tools(ToolTypes) ->
     lists:flatmap(
-        fun (ToolType) ->
+        fun(ToolType) ->
             case mcp_bridge_tools:get_tools(ToolType) of
                 {ok, #{tools := Tools}} ->
                     Tools;
@@ -182,7 +185,13 @@ list_tools(ToolTypes) ->
         ToolTypes
     ).
 
-send_tools_call(HttpHeaders, JwtClaims, #{method := <<"tools/call">>, id := McpReqId, params := Params} = McpRequest, WaitResponse, Timeout) ->
+send_tools_call(
+    HttpHeaders,
+    JwtClaims,
+    #{method := <<"tools/call">>, id := McpReqId, params := Params} = McpRequest,
+    WaitResponse,
+    Timeout
+) ->
     case get_target_clientid(HttpHeaders, JwtClaims, Params) of
         {error, Reason} ->
             call_tool_result({error, Reason}, McpReqId);
@@ -196,11 +205,19 @@ get_target_clientid(HttpHeaders, JwtClaims, Params) ->
         undefined ->
             case mcp_bridge:get_config() of
                 #{get_target_clientid_from := <<"tool_params">>} ->
-                    {error, <<?TARGET_CLIENTID_KEY_S" not found in tool params">>};
+                    {error, <<?TARGET_CLIENTID_KEY_S " not found in tool params">>};
                 #{get_target_clientid_from := <<"http_headers">>} ->
-                    maps:get(?TARGET_CLIENTID_KEY, HttpHeaders, {error, <<?TARGET_CLIENTID_KEY_S" not found in http headers">>});
+                    maps:get(
+                        ?TARGET_CLIENTID_KEY,
+                        HttpHeaders,
+                        {error, <<?TARGET_CLIENTID_KEY_S " not found in http headers">>}
+                    );
                 #{get_target_clientid_from := <<"jwt_claims">>} ->
-                    maps:get(?TARGET_CLIENTID_KEY, JwtClaims, {error, <<?TARGET_CLIENTID_KEY_S" not found in jwt claims">>})
+                    maps:get(
+                        ?TARGET_CLIENTID_KEY,
+                        JwtClaims,
+                        {error, <<?TARGET_CLIENTID_KEY_S " not found in jwt claims">>}
+                    )
             end;
         MqttClientId ->
             MqttClientId
@@ -305,7 +322,9 @@ make_semi_finished_mqtt_msg(Topic, Mref, McpRequest, WaitResponse) ->
     Msg = make_mqtt_msg(Topic, <<>>, ?MCP_CLIENTID_B, #{}, 1),
     emqx_message:set_header(?MCP_MSG_HEADER, make_mcp_request(Mref, McpRequest, WaitResponse), Msg).
 
-complete_mqtt_msg(#message{headers = #{?MCP_MSG_HEADER := McpRequest} = Headers} = Message, McpReqId) ->
+complete_mqtt_msg(
+    #message{headers = #{?MCP_MSG_HEADER := McpRequest} = Headers} = Message, McpReqId
+) ->
     #{method := Method, params := Params} = McpRequest,
     Payload = json_rpc_request(McpReqId, Method, Params),
     Message#message{payload = Payload, headers = maps:remove(?MCP_MSG_HEADER, Headers)}.

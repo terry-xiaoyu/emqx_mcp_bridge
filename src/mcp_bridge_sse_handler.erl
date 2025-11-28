@@ -5,15 +5,17 @@
 
 -behaviour(cowboy_handler).
 
--export([ init/2
-        , info/3
-        ]).
+-export([
+    init/2,
+    info/3
+]).
 
 -export([path_specs/0]).
 
 path_specs() ->
-    [ {"/sse", mcp_bridge_sse_handler, #{}}
-    , {"/sse/:session_id", mcp_bridge_sse_handler, #{}}
+    [
+        {"/sse", mcp_bridge_sse_handler, #{}},
+        {"/sse/:session_id", mcp_bridge_sse_handler, #{}}
     ].
 
 init(Req, State) ->
@@ -32,7 +34,6 @@ handle_method(<<"GET">>, <<"/sse">>, Req0, State) ->
     ok = cowboy_req:stream_events(EndpointEvent, nofin, Req),
     ok = mcp_bridge_session:register_session(SessionId, self()),
     {cowboy_loop, Req, State};
-
 handle_method(<<"POST">>, <<"/sse/", SessionId/binary>>, Req, State) ->
     {ok, Body, Req1} = cowboy_req:read_body(Req),
     %% Process the message body as needed
@@ -79,6 +80,8 @@ handle_message(Message, Req, State) ->
             ?SLOG(warning, #{msg => ignoring_rpc_message, tag => ?MODULE, rpc_message => RpcMsg}),
             {undefined, State};
         {error, Reason} ->
-            ?SLOG(error, #{msg => invalid_rpc_message, tag => ?MODULE, reason => Reason, message => Message}),
+            ?SLOG(error, #{
+                msg => invalid_rpc_message, tag => ?MODULE, reason => Reason, message => Message
+            }),
             {mcp_bridge_message:json_rpc_error(-1, -32600, <<"Invalid JSON">>, #{}), State}
     end.

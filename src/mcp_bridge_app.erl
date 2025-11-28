@@ -39,20 +39,23 @@ on_health_check(Options) ->
 
 start_listener() ->
     #{listening_address := ListeningAddress, certfile := Certfile, keyfile := Keyfile} = mcp_bridge:get_config(),
-    #{scheme := Scheme, path := Path, authority := #{port := Port, host := Host}} = ListeningAddress,
-    Paths = case Path of
-                <<"/sse">> ->
-                    mcp_bridge_sse_handler:path_specs();
-                _ ->
-                    mcp_bridge_sse_handler:path_specs() ++ mcp_bridge_http_handler:path_specs(Path)
-            end,
+    #{scheme := Scheme, path := Path, authority := #{port := Port, host := Host}} =
+        ListeningAddress,
+    Paths =
+        case Path of
+            <<"/sse">> ->
+                mcp_bridge_sse_handler:path_specs();
+            _ ->
+                mcp_bridge_sse_handler:path_specs() ++ mcp_bridge_http_handler:path_specs(Path)
+        end,
     Dispatch = cowboy_router:compile([
         {'_', Paths}
     ]),
     Middlewares = [mcp_bridge_http_auth, cowboy_router, cowboy_handler],
     case Scheme of
         <<"http">> ->
-            cowboy:start_clear(mcp_bridge_http_listener,
+            cowboy:start_clear(
+                mcp_bridge_http_listener,
                 [{port, Port}, {ip, Host}],
                 #{env => #{dispatch => Dispatch}, middlewares => Middlewares}
             );
@@ -61,11 +64,13 @@ start_listener() ->
                 {certfile, Certfile},
                 {keyfile, Keyfile}
             ],
-            cowboy:start_tls(mcp_bridge_http_listener,
+            cowboy:start_tls(
+                mcp_bridge_http_listener,
                 [{port, Port}, {ip, Host}] ++ SSLOptions,
                 #{env => #{dispatch => Dispatch}, middlewares => Middlewares}
             );
-        _ -> {error, {invalid_scheme, Scheme}}
+        _ ->
+            {error, {invalid_scheme, Scheme}}
     end.
 
 stop_listener() ->

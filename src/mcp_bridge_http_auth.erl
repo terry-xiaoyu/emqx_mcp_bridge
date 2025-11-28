@@ -22,7 +22,8 @@ get_jwt_token(Headers) ->
     end.
 
 validate_jwt(undefined) ->
-    {ok, #{}};  %% Allow requests without JWT for now
+    %% Allow requests without JWT for now
+    {ok, #{}};
 validate_jwt(JwtToken) ->
     #{jwt_secret := Secret} = mcp_bridge:get_config(),
     try

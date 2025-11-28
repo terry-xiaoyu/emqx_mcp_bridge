@@ -50,9 +50,11 @@ save_tools(ToolType, ToolsList) ->
         ToolSchema#{
             <<"name">> => <<ToolType/binary, ":", Name/binary>>,
             <<"inputSchema">> => maybe_add_target_client_param(InputSchema)
-        } || #{<<"name">> := Name, <<"inputSchema">> := InputSchema} = ToolSchema <- ToolsList
+        }
+     || #{<<"name">> := Name, <<"inputSchema">> := InputSchema} = ToolSchema <- ToolsList
     ],
-    mria:dirty_write(?TAB,
+    mria:dirty_write(
+        ?TAB,
         #emqx_mcp_tool_registry{
             tool_type = ToolType,
             tools = TaggedTools
