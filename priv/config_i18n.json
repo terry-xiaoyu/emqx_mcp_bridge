@@ -34,5 +34,21 @@
   "$jwt_secret_desc": {
     "zh": "用于验证 HTTP 头中 JWT 令牌的密钥。",
     "en": "The secret key used to verify JWT tokens in HTTP headers."
+  },
+  "$certfile_label": {
+    "zh": "TLS 证书文件",
+    "en": "TLS Certificate File"
+  },
+  "$certfile_desc": {
+    "zh": "用于验证 HTTP 头中 JWT 令牌的 TLS 证书文件（仅在使用 HTTPS 时）。需要包含完整的证书链。",
+    "en": "The TLS certificate file for verifying JWT tokens in HTTP headers (only if using HTTPS). It should include the full certificate chain."
+  },
+  "$keyfile_label": {
+    "zh": "TLS 密钥文件",
+    "en": "TLS Key File"
+  },
+  "$keyfile_desc": {
+    "zh": "用于验证 HTTP 头中 JWT 令牌的 TLS 密钥文件（仅在使用 HTTPS 时）。",
+    "en": "The TLS key file for verifying JWT tokens in HTTP headers (only if using HTTPS)."
   }
 }

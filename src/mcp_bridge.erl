@@ -312,7 +312,9 @@ parse_config(#{<<"listening_address">> := URI} = Config) ->
             authority := Authority#{host := parse_address(Host)}
         },
         load_tools_from_mcp_over_mqtt_servers => LoadMcpServers,
-        jwt_secret => maps:get(<<"jwt_secret">>, Config, <<"">>)
+        jwt_secret => maps:get(<<"jwt_secret">>, Config, <<"">>),
+        certfile => maps:get(<<"certfile">>, Config, <<"">>),
+        keyfile => maps:get(<<"keyfile">>, Config, <<"">>)
     }.
 
 parse_address(Host) when is_binary(Host) ->

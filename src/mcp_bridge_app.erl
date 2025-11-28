@@ -38,7 +38,7 @@ on_health_check(Options) ->
     mcp_bridge:on_health_check(Options).
 
 start_listener() ->
-    #{listening_address := ListeningAddress} = mcp_bridge:get_config(),
+    #{listening_address := ListeningAddress, certfile := Certfile, keyfile := Keyfile} = mcp_bridge:get_config(),
     #{scheme := Scheme, path := Path, authority := #{port := Port, host := Host}} = ListeningAddress,
     Paths = case Path of
                 <<"/sse">> ->
@@ -58,12 +58,12 @@ start_listener() ->
             );
         <<"https">> ->
             SSLOptions = [
-                {certfile, "path/to/cert.pem"},
-                {keyfile, "path/to/key.pem"}
+                {certfile, Certfile},
+                {keyfile, Keyfile}
             ],
             {ok, _} = cowboy:start_tls(mcp_bridge_http_listener,
-                [{port, Port}, {ip, Host}],
-                #{env => #{dispatch => Dispatch}, ssl_opts => SSLOptions, middlewares => Middlewares}
+                [{port, Port}, {ip, Host}] ++ SSLOptions,
+                #{env => #{dispatch => Dispatch}, middlewares => Middlewares}
             );
         _ -> error
     end,

@@ -13,3 +13,9 @@ get_target_clientid_from = "http_headers"
 
 ## JWT secret for verifying JWT tokens in HTTP headers
 jwt_secret = "your_jwt_secret_here"
+
+## TLS certificate file for verifying JWT tokens in HTTP headers (only if using HTTPS)
+certfile = "path/to/fullchain.pem"
+
+## TLS key file for verifying JWT tokens in HTTP headers (only if using HTTPS)
+keyfile = "path/to/key.pem"

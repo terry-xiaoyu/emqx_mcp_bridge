@@ -61,6 +61,28 @@
         "label": "$jwt_secret_label",
         "description": "$jwt_secret_desc"
       }
+    },
+    {
+      "name": "certfile",
+      "type": "string",
+      "default": "",
+      "$ui": {
+        "component": "input",
+        "flex": 12,
+        "label": "$certfile_label",
+        "description": "$certfile_desc"
+      }
+    },
+    {
+      "name": "keyfile",
+      "type": "string",
+      "default": "",
+      "$ui": {
+        "component": "input",
+        "flex": 12,
+        "label": "$keyfile_label",
+        "description": "$keyfile_desc"
+      }
     }
   ]
 }

@@ -36,7 +36,7 @@ handle_method(<<"GET">>, <<"/sse">>, Req0, State) ->
 handle_method(<<"POST">>, <<"/sse/", SessionId/binary>>, Req, State) ->
     {ok, Body, Req1} = cowboy_req:read_body(Req),
     %% Process the message body as needed
-    io:format("Received message for session ~p: ~p~n", [SessionId, Body]),
+    ?SLOG(debug, #{msg => received_sse_post, tag => ?MODULE, session_id => SessionId, body => Body}),
     %% Quick reply with 202 Accepted, and dispatch the message to the session handler
     case mcp_bridge_session:dispatch_message(SessionId, Body) of
         ok ->
