@@ -182,25 +182,33 @@ list_tools(ToolTypes) ->
         ToolTypes
     ).
 
-send_tools_call(HttpHeaders, JwtClaims, #{method := <<"tools/call">>, params := Params} = McpRequest, WaitResponse, Timeout) ->
-    MqttClientId1 = 
-        case maps:get(?TARGET_CLIENTID_KEY, Params, undefined) of
-            undefined ->
-                case mcp_bridge:get_config() of
-                    #{get_target_clientid_from := <<"tool_params">>} ->
-                        throw(#{reason => invalid_tool_params, detail => <<?TARGET_CLIENTID_KEY_S" not found in tool params">>});
-                    #{get_target_clientid_from := <<"http_headers">>} ->
-                        maps:get(?TARGET_CLIENTID_KEY, HttpHeaders);
-                    #{get_target_clientid_from := <<"jwt_claims">>} ->
-                        maps:get(?TARGET_CLIENTID_KEY, JwtClaims)
-                end;
-            MqttClientId ->
-                MqttClientId
-        end,
-    do_send_tools_call(MqttClientId1, McpRequest, WaitResponse, Timeout).
+send_tools_call(HttpHeaders, JwtClaims, #{method := <<"tools/call">>, id := McpReqId, params := Params} = McpRequest, WaitResponse, Timeout) ->
+    case get_target_clientid(HttpHeaders, JwtClaims, Params) of
+        {error, Reason} ->
+            call_tool_result({error, Reason}, McpReqId);
+        MqttClientId ->
+            Result = do_send_tools_call(MqttClientId, McpRequest, WaitResponse, Timeout),
+            call_tool_result(Result, McpReqId)
+    end.
 
-do_send_tools_call(MqttClientId, #{id := McpReqId, params := Params} = McpRequest, WaitResponse, Timeout) ->
-    case string:split(maps:get(<<"name">>, Params, <<>>), ":") of
+get_target_clientid(HttpHeaders, JwtClaims, Params) ->
+    case maps:get(?TARGET_CLIENTID_KEY, Params, undefined) of
+        undefined ->
+            case mcp_bridge:get_config() of
+                #{get_target_clientid_from := <<"tool_params">>} ->
+                    {error, <<?TARGET_CLIENTID_KEY_S" not found in tool params">>};
+                #{get_target_clientid_from := <<"http_headers">>} ->
+                    maps:get(?TARGET_CLIENTID_KEY, HttpHeaders, {error, <<?TARGET_CLIENTID_KEY_S" not found in http headers">>});
+                #{get_target_clientid_from := <<"jwt_claims">>} ->
+                    maps:get(?TARGET_CLIENTID_KEY, JwtClaims, {error, <<?TARGET_CLIENTID_KEY_S" not found in jwt claims">>})
+            end;
+        MqttClientId ->
+            MqttClientId
+    end.
+
+do_send_tools_call(MqttClientId, #{params := Params} = McpRequest, WaitResponse, Timeout) ->
+    Name = maps:get(<<"name">>, Params, <<>>),
+    case string:split(Name, ":") of
         [ToolType, ToolName] ->
             case mcp_bridge_tools:get_tools(ToolType) of
                 {ok, _} ->
@@ -211,12 +219,12 @@ do_send_tools_call(MqttClientId, #{id := McpReqId, params := Params} = McpReques
                         server_id => MqttClientId,
                         server_name => ToolType
                     }),
-                    Result = send_mcp_request(MqttClientId, Topic, McpRequest1, WaitResponse, Timeout),
-                    call_tool_result(Result, McpReqId);
+                    send_mcp_request(MqttClientId, Topic, McpRequest1, WaitResponse, Timeout);
                 {error, not_found} ->
                     {error, tool_not_found}
             end;
-        _ -> {error, invalid_tool_name}
+        _ ->
+            {error, #{reason => invalid_tool_name, name => Name}}
     end.
 
 send_mcp_request(MqttClientId, Topic, McpRequest, WaitResponse, Timeout) ->
@@ -269,10 +277,17 @@ call_tool_result({error, Reason}, McpReqId) ->
         <<"content">> => [
             #{
                 <<"type">> => <<"text">>,
-                <<"text">> => iolist_to_binary(io_lib:format("~p", [Reason]))
+                <<"text">> => format_reason(Reason)
             }
         ]
     }).
+
+format_reason(Reason) when is_binary(Reason) ->
+    Reason;
+format_reason(Reason) when is_atom(Reason) ->
+    atom_to_binary(Reason, utf8);
+format_reason(Reason) ->
+    iolist_to_binary(io_lib:format("~p", [Reason])).
 
 make_mcp_request(Mref, #{id := McpReqId, method := Method, params := Params}, WaitResponse) ->
     #{
