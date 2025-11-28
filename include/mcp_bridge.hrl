@@ -1,9 +1,9 @@
 -define(PLUGIN_NAME, "mcp_bridge").
--define(PLUGIN_VSN, "1.0.0").
+-define(PLUGIN_VSN, ?plugin_rel_vsn).
 -define(MCP_VERSION, <<"2024-11-05">>).
 -define(MCP_BRIDGE_INFO, #{
     <<"name">> => <<"emqx_mcp_bridge">>,
-    <<"version">> => <<"1.0.0">>,
+    <<"version">> => <<?plugin_rel_vsn>>,
     <<"title">> => <<"EMQX MCP Bridge">>
 }).
 -define(MCP_MSG_HEADER, emqx_mcp_bridge).
