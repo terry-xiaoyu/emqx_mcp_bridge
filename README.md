@@ -4,7 +4,7 @@ An EMQX plugin that bridges Streamable HTTP or MCP-SSE to MCP-over-MQTT.
 
 ## Overview
 
-This plugin allows HTTP MCP clients to communicate with MCP-over-MQTT clients by bridging the two protocols.
+This plugin allows HTTP MCP clients to communicate with MCP-over-MQTT clients by bridging the two protocols. And this plugin also allows users to create MCP tools directly and expose them to HTTP MCP clients.
 
 ## Configuration
 
@@ -39,6 +39,44 @@ After loading tools from the MCP Server, the plugin transforms the tool list as 
 ### List only specific tool types
 
 When an MCP-HTTP client requests the tool list, it can specify which tool types to include in the response. The plugin retrieves the desired tool types from the HTTP headers or JWT claims based on the `get_tool_types_from` configuration. If no tool types are specified, the plugin returns tools from all available tool types.
+
+## Create custom MCP tools
+
+To create custom MCP tools, users need to create a module with the prefix `mcp_bridge_tools_` and implement the callback functions. The module should have exactly one `-tool_type` attribute to specify the tool type, and at least one `-tool` attribute to define the tools. See the module `mcp_bridge_tools_clients` for an example.
+
+Here is a minimal sample module that exports one tool that adds two numbers:
+
+```erlang
+-module(mcp_bridge_tools_sample).
+-export([add/2]).
+
+-tool_type(<<"sample">>).
+-tool(#{
+    name => <<"add">>,
+    title => <<"Add Tool">>,
+    description => <<"Adds two numbers">>,
+    inputSchema => #{
+        type => <<"object">>,
+        properties => #{
+            num1 => #{
+                type => <<"number">>,
+                title => <<"First Number">>,
+                description => <<"The first number to add">>
+            },
+            num2 => #{
+                type => <<"number">>,
+                title => <<"Second Number">>,
+                description => <<"The second number to add">>
+            }
+        },
+        required => [num1, num2]
+    },
+    opts => #{}
+}).
+
+add(#{<<"num1">> := Num1, <<"num2">> := Num2} = _Params, _Opts) ->
+    {ok, Num1 + Num2}.
+```
 
 ## Deployment
 
