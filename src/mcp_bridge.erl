@@ -34,8 +34,7 @@
 -export([
     on_client_connected/2,
     on_message_publish/1,
-    on_message_delivered/2,
-    on_message_puback/4
+    on_message_delivered/2
 ]).
 
 -export([
@@ -53,23 +52,21 @@
 
 %% NOTE
 %% Functions from EMQX are unavailable at compile time.
--dialyzer({no_unknown, [hook/0, unhook/0, on_message_puback/4]}).
+-dialyzer({no_unknown, [hook/0, unhook/0]}).
 
 %% @doc
 %% Called when the plugin application start
 hook() ->
     emqx_hooks:add('client.connected', {?MODULE, on_client_connected, []}, ?HP_LOWEST),
     emqx_hooks:add('message.publish', {?MODULE, on_message_publish, []}, ?HP_HIGHEST),
-    emqx_hooks:add('message.delivered', {?MODULE, on_message_delivered, []}, ?HP_HIGHEST),
-    emqx_hooks:add('message.puback', {?MODULE, on_message_puback, []}, ?HP_HIGHEST).
+    emqx_hooks:add('message.delivered', {?MODULE, on_message_delivered, []}, ?HP_HIGHEST).
 
 %% @doc
 %% Called when the plugin stops
 unhook() ->
     emqx_hooks:del('client.connected', {?MODULE, on_client_connected}),
     emqx_hooks:del('message.publish', {?MODULE, on_message_publish}),
-    emqx_hooks:del('message.delivered', {?MODULE, on_message_delivered}),
-    emqx_hooks:del('message.puback', {?MODULE, on_message_puback}).
+    emqx_hooks:del('message.delivered', {?MODULE, on_message_delivered}).
 
 %%--------------------------------------------------------------------
 %% Hook callbacks
@@ -170,22 +167,6 @@ on_message_delivered(
     {ok, mcp_bridge_message:complete_mqtt_msg(Message, MqttId)};
 on_message_delivered(_ClientInfo, Message) ->
     {ok, Message}.
-
-on_message_puback(_PacketId, #message{} = Message, PubRes, RC) ->
-    NewRC =
-        case RC of
-            %% Demo: some service do not want to expose the error code (129) to client;
-            %% so here it remap 129 to 128
-            129 -> 128;
-            _ -> RC
-        end,
-    ?SLOG(debug, #{
-        msg => "mcp_bridge_on_message_puback",
-        message => emqx_message:to_map(Message),
-        pubres => PubRes,
-        rc => NewRC
-    }),
-    {ok, NewRC}.
 
 initialize_mcp_server(ServerInfo) ->
     InitReq = mcp_bridge_message:initialize_request(?INIT_REQ_ID, ?MCP_BRIDGE_INFO, #{}),
