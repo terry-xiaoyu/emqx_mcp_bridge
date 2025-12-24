@@ -14,6 +14,13 @@ handle_message(Message, Req, State) ->
             JwtClaims = maps:get(jwt_claims, Req, #{}),
             Response = mcp_bridge_message:get_tools_list(Headers, JwtClaims, McpReqId),
             {Response, State};
+        {ok, #{type := json_rpc_request, method := <<"resources/list">>, id := McpReqId}} ->
+            %% The MCP bridge only uses tools, it always converts the resources to tools.
+            Response = mcp_bridge_message:list_resources_response(McpReqId, []),
+            {Response, State};
+        {ok, #{type := json_rpc_request, method := <<"prompts/list">>, id := McpReqId}} ->
+            Response = mcp_bridge_message:list_prompts_response(McpReqId, []),
+            {Response, State};
         {ok, #{type := json_rpc_request, method := <<"tools/call">>} = RpcMsg} ->
             Headers = cowboy_req:headers(Req),
             JwtClaims = maps:get(jwt_claims, Req, #{}),

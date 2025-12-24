@@ -11,6 +11,8 @@
     initialize_response/4,
     initialized_notification/0,
     list_tools_request/1,
+    list_resources_response/2,
+    list_prompts_response/2,
     ping_response/1
 ]).
 
@@ -74,6 +76,16 @@ list_tools_request(Id) ->
         <<"tools/list">>,
         #{}
     ).
+
+list_resources_response(Id, Resources) ->
+    json_rpc_response(Id, #{
+        <<"resources">> => Resources
+    }).
+
+list_prompts_response(Id, Prompts) ->
+    json_rpc_response(Id, #{
+        <<"prompts">> => Prompts
+    }).
 
 ping_response(Id) ->
     json_rpc_response(Id, #{}).
