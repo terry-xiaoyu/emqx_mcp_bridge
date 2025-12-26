@@ -223,14 +223,14 @@ load_mcp_over_mqtt_tools() ->
 
 get_custom_tools(Module) ->
     Attrs = Module:module_info(attributes),
-    case lists:keyfind(tool_type, 1, Attrs) of
-        {tool_type, [ToolType]} ->
-            Tools = [format_tool(Tool, Module) || {tool, [Tool]} <- Attrs],
+    case lists:keyfind(mcp_tool_type, 1, Attrs) of
+        {mcp_tool_type, [ToolType]} ->
+            Tools = [format_tool(Tool, Module) || {mcp_tool, [Tool]} <- Attrs],
             ToolOpts = get_tool_opts(Attrs),
             {bin(ToolType), Tools, ToolOpts};
         _ ->
-            case lists:keyfind(tool, 1, Attrs) of
-                {tool, _} ->
+            case lists:keyfind(mcp_tool, 1, Attrs) of
+                {mcp_tool, _} ->
                     throw({missing_tool_type_definition, Module});
                 _ ->
                     no_tools

@@ -10,9 +10,9 @@
 %% Tool type is used to categorize the tools. A module can define only one tool type.
 %% Here we define a tool type "emqx/clients" which means all tools defined in this module
 %% are related to EMQX clients management.
--tool_type(<<"emqx/clients">>).
+-mcp_tool_type(<<"emqx/clients">>).
 
--tool(#{
+-mcp_tool(#{
     %% Note that the 'name' field must be the callback function name defined below.
     name => get_client_status,
     title => <<"Get Client Status">>,
@@ -39,7 +39,7 @@
     }
 }).
 
--tool(#{
+-mcp_tool(#{
     name => publish_mqtt_message,
     title => <<"Publish MQTT Message">>,
     description => <<""

@@ -57,7 +57,7 @@ If no tool types are specified, the plugin returns tools from all available tool
 
 ## Create custom MCP tools
 
-To create custom MCP tools, users need to create a module with the prefix `mcp_bridge_tools_` and implement the callback functions. The module should have exactly one `-tool_type` attribute to specify the tool type, and at least one `-tool` attribute to define the tools. See the module `mcp_bridge_tools_clients` for an example.
+To create custom MCP tools, users need to create a module with the prefix `mcp_bridge_tools_` and implement the callback functions. The module should have exactly one `-mcp_tool_type` attribute to specify the tool type, and at least one `-mcp_tool` attribute to define the tools. See the module `mcp_bridge_tools_clients` for an example.
 
 Here is a minimal sample module that exports one tool that adds two numbers:
 
@@ -65,8 +65,8 @@ Here is a minimal sample module that exports one tool that adds two numbers:
 -module(mcp_bridge_tools_sample).
 -export([add/2]).
 
--tool_type(<<"sample">>).
--tool(#{
+-mcp_tool_type(<<"sample">>).
+-mcp_tool(#{
     name => <<"add">>,
     title => <<"Add Tool">>,
     description => <<"Adds two numbers">>,
